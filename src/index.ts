@@ -19,19 +19,18 @@ type PaginatedMenuStyle<C extends Context> = {
   next?: MaybeString<C>;
 };
 
-export class PaginatedMenu<T extends Context> extends Menu<T> {
-  protected perPage: number;
-  protected getTotal: (ctx: T) => Promise<number>;
-  protected style?: PaginatedMenuStyle<T>;
+export type PaginatedMenuOptions<C extends Context> = {
+  perPage: number;
+  getTotal: (ctx: C) => MaybePromise<number>;
+  style?: PaginatedMenuStyle<C>;
+};
 
-  constructor(
-    name: string,
-    options: {
-      perPage: number;
-      getTotal: (ctx: T) => Promise<number>;
-      style?: PaginatedMenuStyle<T>;
-    }
-  ) {
+export class PaginatedMenu<C extends Context> extends Menu<C> {
+  protected perPage: number;
+  protected getTotal: (ctx: C) => MaybePromise<number>;
+  protected style?: PaginatedMenuStyle<C>;
+
+  constructor(name: string, options: PaginatedMenuOptions<C>) {
     super(name, {
       fingerprint: (ctx) => `page:${this.getPage(ctx)}`,
       onMenuOutdated: async (ctx) => {
@@ -44,24 +43,24 @@ export class PaginatedMenu<T extends Context> extends Menu<T> {
     this.style = options.style;
   }
 
-  protected getPages = async (ctx: T) =>
+  protected getPages = async (ctx: C) =>
     Math.ceil((await this.getTotal(ctx)) / this.perPage);
 
-  protected getPage = (ctx: T) => Number(ctx.match || 1);
+  protected getPage = (ctx: C) => Number(ctx.match || 1);
 
   protected payload = {
-    current: (ctx: T) => this.getPage(ctx).toString(),
-    previous: (ctx: T) => Math.max(1, this.getPage(ctx) - 1).toString(),
-    next: async (ctx: T) =>
+    current: (ctx: C) => this.getPage(ctx).toString(),
+    previous: (ctx: C) => Math.max(1, this.getPage(ctx) - 1).toString(),
+    next: async (ctx: C) =>
       Math.min(await this.getPages(ctx), this.getPage(ctx) + 1).toString(),
   };
 
   public paginated<E>(config: {
-    total: (ctx: T) => MaybePromise<number>;
-    data: (pagination: MenuPagination, ctx: T) => MaybePromise<E[]>;
+    total: (ctx: C) => MaybePromise<number>;
+    data: (pagination: MenuPagination, ctx: C) => MaybePromise<E[]>;
     builder: (
       pagination: MenuPagination,
-      range: MenuRange<T>,
+      range: MenuRange<C>,
       item: E,
       payload: string
     ) => MaybePromise<void> | void;
