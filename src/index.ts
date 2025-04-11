@@ -66,7 +66,6 @@ export class PaginatedMenu<T extends Context> extends Menu<T> {
       payload: string
     ) => MaybePromise<void> | void;
   }) {
-    console.log(this.style);
     this.dynamic(async (ctx, range) => {
       const pagination = {
         total: await config.total(ctx),
