@@ -1,8 +1,9 @@
 import { test } from "@japa/runner";
 import { Context } from "grammy";
 import { captureRequests, TestBot } from "grammy-test";
-import { PaginatedMenu } from "../src/index.ts";
+import { PaginatedMenu, PaginatedMenuOptions } from "../src/index.ts";
 import { Assert } from "@japa/assert";
+
 test.group("Paginated menu", async (group) => {
   let bot: TestBot<Context>;
 
@@ -14,47 +15,39 @@ test.group("Paginated menu", async (group) => {
     return items;
   })();
 
-  const paginatedMenu = new PaginatedMenu<Context>("paginated-menu", {
-    perPage: 5,
-    getTotal: async (ctx) => data.length,
-    style: {
-      // previous: "⬅️",
-      // current: async (ctx) => `$current ${ctx.t("separator")} $total`,
-      // next: "➡️",
-      // current: "",
-    },
-  }).paginated({
-    total: async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
+  const createMenu = (config: PaginatedMenuOptions<Context>) =>
+    new PaginatedMenu<Context>("paginated-menu", config).paginated({
+      total: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-      return data.length;
-    },
-    data: async (pagination) => {
-      // console.log("fetching page", pagination.currentPage);
+        return data.length;
+      },
+      data: async (pagination) => {
+        console.log("fetching page", pagination.currentPage);
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-      return data.slice(
-        (pagination.currentPage - 1) * pagination.perPage,
-        pagination.currentPage * pagination.perPage
-      );
-    },
-    builder: async (pagination, range, item, payload) => {
-      // console.log("building item", item);
+        return data.slice(
+          (pagination.currentPage - 1) * pagination.perPage,
+          pagination.currentPage * pagination.perPage
+        );
+      },
+      builder: async (pagination, range, item, payload) => {
+        console.log("building item", item);
 
-      range
-        .text(
-          {
-            text: (ctx) => `item ${item} | page: ${pagination.currentPage}`,
-            payload,
-          },
-          async (ctx) => {
-            console.log(item);
-          }
-        )
-        .row();
-    },
-  });
+        range
+          .text(
+            {
+              text: (ctx) => `item ${item} | page: ${pagination.currentPage}`,
+              payload,
+            },
+            async (ctx) => {
+              console.log(item);
+            }
+          )
+          .row();
+      },
+    });
 
   group.each.setup(async () => {
     bot = new TestBot();
@@ -65,6 +58,11 @@ test.group("Paginated menu", async (group) => {
   test("has previous and next buttons with pagination indicator", async ({
     assert,
   }) => {
+    const paginatedMenu = createMenu({
+      perPage: 5,
+      getTotal: () => data.length,
+    });
+
     bot.use(paginatedMenu);
 
     bot.command("start", async (ctx) => {
@@ -87,6 +85,11 @@ test.group("Paginated menu", async (group) => {
   });
 
   test("can navigate to the last page", async ({ assert }) => {
+    const paginatedMenu = createMenu({
+      perPage: 5,
+      getTotal: () => data.length,
+    });
+
     bot.use(paginatedMenu);
 
     bot.command("start", async (ctx) => {
