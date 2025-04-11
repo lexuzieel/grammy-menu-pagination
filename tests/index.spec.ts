@@ -123,4 +123,34 @@ test.group("Paginated menu", async (group) => {
     bot.assert.button("3 / 3");
     assert.throws(() => bot.assert.button(">"));
   });
+
+  test("can navigate to the last page2", async ({ assert }) => {
+    const paginatedMenu = createMenu({
+      perPage: 5,
+      getTotal: () => data.length,
+      style: {
+        previous: "⬅️",
+        current: `page $current of $total`,
+        next: "➡️",
+      },
+    });
+
+    bot.use(paginatedMenu);
+
+    bot.command("start", async (ctx) => {
+      await ctx.reply("This is a paginated menu", {
+        reply_markup: paginatedMenu,
+      });
+    });
+
+    await bot.receive.command("start");
+
+    bot.assert.button("➡️");
+    bot.assert.button("page 1 of 3");
+
+    await bot.receive.button("➡️");
+
+    bot.assert.button("⬅️");
+    bot.assert.button("page 2 of 3");
+  });
 });
