@@ -16,7 +16,7 @@ test.group("Paginated menu", async (group) => {
   })();
 
   const createMenu = (config: PaginatedMenuOptions<Context, string>) =>
-    new PaginatedMenu("paginated-menu", config).text("button").paginated({
+    new PaginatedMenu("paginated-menu", config).paginated({
       item: async (pagination, range, item, payload) => {
         range
           .text(
@@ -143,7 +143,6 @@ test.group("Paginated menu", async (group) => {
 
     await bot.receive.command("start");
 
-    bot.assert.button("button");
     bot.assert.button("page 1 of 3");
 
     await bot.receive.button("➡️");
