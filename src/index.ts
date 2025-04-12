@@ -59,6 +59,21 @@ type PaginatedMenuPayload = {
   page: number;
 };
 
+export type PaginatedMenuRangeGenerator<C extends Context> = (
+  range: MenuRange<C>,
+  payload: string,
+  pagination: MenuPagination,
+  ctx: C
+) => MaybePromise<void> | void;
+
+export type PaginatedMenuItemGenerator<C extends Context, T extends any> = (
+  item: T,
+  range: MenuRange<C>,
+  payload: string,
+  pagination: MenuPagination,
+  ctx: C
+) => MaybePromise<void> | void;
+
 export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
   private paginationOptions: PaginatedMenuOptions<C, T>;
 
@@ -170,24 +185,9 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
   };
 
   public paginated(config: {
-    before?: (
-      range: MenuRange<C>,
-      payload: string,
-      pagination: MenuPagination,
-      ctx: C
-    ) => MaybePromise<void> | void;
-    item: (
-      pagination: MenuPagination,
-      range: MenuRange<C>,
-      item: T,
-      payload: string
-    ) => MaybePromise<void> | void;
-    after?: (
-      range: MenuRange<C>,
-      payload: string,
-      pagination: MenuPagination,
-      ctx: C
-    ) => MaybePromise<void> | void;
+    before?: PaginatedMenuRangeGenerator<C>;
+    item: PaginatedMenuItemGenerator<C, T>;
+    after?: PaginatedMenuRangeGenerator<C>;
   }) {
     this.clearTotalCache();
 
@@ -212,7 +212,7 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
       const items = await this.paginationOptions.data(pagination, ctx);
 
       for (const item of items) {
-        config.item(pagination, range, item, this.payload.current(ctx));
+        config.item(item, range, this.payload.current(ctx), pagination, ctx);
       }
     });
 

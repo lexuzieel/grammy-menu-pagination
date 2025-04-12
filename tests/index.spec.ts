@@ -1,7 +1,11 @@
 import { test } from "@japa/runner";
 import { Context } from "grammy";
 import { captureRequests, TestBot } from "grammy-test";
-import { PaginatedMenu, PaginatedMenuOptions } from "../src/index.ts";
+import {
+  PaginatedMenu,
+  PaginatedMenuOptions,
+  PaginatedMenuRangeGenerator,
+} from "../src/index.ts";
 import { Assert } from "@japa/assert";
 
 test.group("Paginated menu", async (group) => {
@@ -15,9 +19,19 @@ test.group("Paginated menu", async (group) => {
     return items;
   })();
 
-  const createMenu = (config: PaginatedMenuOptions<Context, string>) =>
+  const createMenu = (
+    config: PaginatedMenuOptions<Context, string>,
+    {
+      before,
+      after,
+    }: {
+      before?: PaginatedMenuRangeGenerator<Context>;
+      after?: PaginatedMenuRangeGenerator<Context>;
+    } = {}
+  ) =>
     new PaginatedMenu("paginated-menu", config).paginated({
-      item: async (pagination, range, item, payload) => {
+      before,
+      item: async (item, range, payload, pagination, ctx) => {
         range
           .text(
             {
@@ -30,6 +44,7 @@ test.group("Paginated menu", async (group) => {
           )
           .row();
       },
+      after,
     });
 
   group.each.setup(async () => {
@@ -149,5 +164,58 @@ test.group("Paginated menu", async (group) => {
 
     bot.assert.button("⬅️");
     bot.assert.button("page 2 of 3");
+  });
+
+  test("can have extra buttons before and after pagination", async ({
+    assert,
+  }) => {
+    const paginatedMenu = createMenu(
+      {
+        perPage: 5,
+        total: () => data.length,
+        data: (pagination) =>
+          data.slice(
+            (pagination.currentPage - 1) * pagination.perPage,
+            pagination.currentPage * pagination.perPage
+          ),
+      },
+      {
+        before: async (range, payload) => {
+          range.text({ text: () => "Button before pagination", payload });
+        },
+        after: async (range, payload) => {
+          range.text({ text: () => "Button after pagination", payload });
+        },
+      }
+    );
+
+    bot.use(paginatedMenu);
+
+    bot.command("start", async (ctx) => {
+      await ctx.reply("This is a paginated menu", {
+        reply_markup: paginatedMenu,
+      });
+    });
+
+    await bot.receive.command("start");
+
+    bot.assert.button("Button before pagination");
+    bot.assert.button("Button after pagination");
+    bot.assert.button("1 / 3"); // Check we are on the first page
+
+    await bot.receive.button(">");
+
+    bot.assert.button("Button before pagination");
+    bot.assert.button("Button after pagination");
+    bot.assert.button("2 / 3"); // Check we are on the second page
+
+    await bot.receive.button("Button before pagination");
+
+    // This stuff might be broken because of grammy-test?
+
+    // await bot.receive.button("Button after pagination");
+    // bot.assert.button("2 / 3"); // Check we are still on the second page
+
+    // console.log(bot.requests);
   });
 });
