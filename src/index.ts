@@ -19,92 +19,130 @@ type PaginatedMenuStyle<C extends Context> = {
   next?: MaybeString<C>;
 };
 
-export type PaginatedMenuOptions<C extends Context> = {
-  perPage: number;
-  getTotal: (ctx: C) => MaybePromise<number>;
+export type PaginatedMenuOptions<C extends Context, T extends any> = {
+  /**
+   * The style of the pagination buttons.
+   *
+   * @example
+   * ```ts
+   * {
+   *   previous: "⬅️",
+   *   current: "$current of $total",
+   *   next: "➡️",
+   * }
+   * ```
+   */
   style?: PaginatedMenuStyle<C>;
+
+  /**
+   * The total number of items to paginate.
+   *
+   * Use this to fetch the total number of items from the database.
+   */
+  total: (ctx: C) => MaybePromise<number>;
+
+  /**
+   * The data to display for the current page.
+   *
+   * Use this to fetch the data from the database
+   * from the range using the `pagination` object.
+   */
+  data: (pagination: MenuPagination, ctx: C) => MaybePromise<T[]>;
+
+  /**
+   * The number of items to display per page.
+   */
+  perPage: number;
 };
 
-export class PaginatedMenu<C extends Context> extends Menu<C> {
-  protected perPage: number;
-  protected getTotal: (ctx: C) => MaybePromise<number>;
-  protected style?: PaginatedMenuStyle<C>;
+type PaginatedMenuPayload = {
+  page: number;
+};
 
-  constructor(name: string, options: PaginatedMenuOptions<C>) {
+export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
+  private paginationOptions: PaginatedMenuOptions<C, T>;
+
+  constructor(name: string, options: PaginatedMenuOptions<C, T>) {
     super(name, {
       fingerprint: (ctx) => `page:${this.getPage(ctx)}`,
       onMenuOutdated: async (ctx) => {
+        this.clearTotalCache();
         await ctx.menu.update({ immediate: true });
       },
     });
 
-    this.perPage = options.perPage;
-    this.getTotal = options.getTotal;
-    this.style = options.style;
+    this.paginationOptions = options;
   }
 
-  protected getPages = async (ctx: C) =>
-    Math.ceil((await this.getTotal(ctx)) / this.perPage);
+  protected packPayload(payload: PaginatedMenuPayload) {
+    return JSON.stringify(payload);
+  }
 
-  protected getPage = (ctx: C) => Number(ctx.match || 1);
+  protected unpackPayload(ctx: C) {
+    const payload = ctx.match;
 
-  protected payload = {
-    current: (ctx: C) => this.getPage(ctx).toString(),
-    previous: (ctx: C) => Math.max(1, this.getPage(ctx) - 1).toString(),
-    next: async (ctx: C) =>
-      Math.min(await this.getPages(ctx), this.getPage(ctx) + 1).toString(),
+    if (typeof payload !== "string" || payload.trim() === "") {
+      return { page: 1 };
+    }
+
+    return JSON.parse(payload) as PaginatedMenuPayload;
+  }
+
+  private cachedTotal: number | undefined;
+
+  private getTotal = async (ctx: C) => {
+    if (this.cachedTotal === undefined) {
+      this.cachedTotal = await this.paginationOptions.total(ctx);
+    }
+
+    return this.cachedTotal;
   };
 
-  public paginated<E>(config: {
-    total: (ctx: C) => MaybePromise<number>;
-    data: (pagination: MenuPagination, ctx: C) => MaybePromise<E[]>;
-    builder: (
-      pagination: MenuPagination,
-      range: MenuRange<C>,
-      item: E,
-      payload: string
-    ) => MaybePromise<void> | void;
-  }) {
-    this.dynamic(async (ctx, range) => {
-      const pagination = {
-        total: await config.total(ctx),
-        perPage: this.perPage,
-        currentPage: this.getPage(ctx),
-      } as MenuPagination;
+  private clearTotalCache = () => {
+    this.cachedTotal = undefined;
+  };
 
-      const items = await config.data(pagination, ctx);
+  protected getPages = async (ctx: C) =>
+    Math.ceil((await this.getTotal(ctx)) / this.paginationOptions.perPage);
 
-      for (const item of items) {
-        config.builder(pagination, range, item, this.payload.current(ctx));
-      }
+  protected getPage = (ctx: C) => this.unpackPayload(ctx).page || 1;
 
-      range.row();
-    });
+  protected payload = {
+    current: (ctx: C) => this.packPayload({ page: this.getPage(ctx) }),
+    previous: (ctx: C) =>
+      this.packPayload({ page: Math.max(1, this.getPage(ctx) - 1) }),
+    next: async (ctx: C) =>
+      this.packPayload({
+        page: Math.min(await this.getPages(ctx), this.getPage(ctx) + 1),
+      }),
+  };
 
+  protected appendNavigationButtons = () => {
     this.text({
       text: async (ctx) => {
         const show = this.getPage(ctx) > 1;
+        const style = this.paginationOptions.style?.previous;
 
         if (!show) {
           return " ";
         }
 
-        return typeof this.style?.previous === "function"
-          ? await this.style?.previous(ctx)
-          : this.style?.previous ?? "<";
+        return typeof style === "function" ? await style(ctx) : style ?? "<";
       },
       payload: (ctx) => this.payload.previous(ctx),
     });
 
-    if (this.style?.current !== "") {
+    if (this.paginationOptions.style?.current !== "") {
       this.text({
         text: async (ctx) => {
           const current = this.getPage(ctx);
           const total = await this.getPages(ctx);
+          const style = this.paginationOptions.style?.current;
+
           const template =
-            typeof this.style?.current === "function"
-              ? await this.style?.current(ctx)
-              : this.style?.current ?? "$current / $total";
+            typeof style === "function"
+              ? await style(ctx)
+              : style ?? "$current / $total";
 
           return template
             .replace("$current", current.toString())
@@ -117,17 +155,75 @@ export class PaginatedMenu<C extends Context> extends Menu<C> {
     this.text({
       text: async (ctx) => {
         const show = this.getPage(ctx) < (await this.getPages(ctx));
+        const style = this.paginationOptions.style?.next;
 
         if (!show) {
           return " ";
         }
 
-        return typeof this.style?.next === "function"
-          ? await this.style?.next(ctx)
-          : this.style?.next ?? ">";
+        return typeof style === "function" ? await style(ctx) : style ?? ">";
       },
       payload: (ctx) => this.payload.next(ctx),
     });
+
+    return this;
+  };
+
+  public paginated(config: {
+    before?: (
+      range: MenuRange<C>,
+      payload: string,
+      pagination: MenuPagination,
+      ctx: C
+    ) => MaybePromise<void> | void;
+    item: (
+      pagination: MenuPagination,
+      range: MenuRange<C>,
+      item: T,
+      payload: string
+    ) => MaybePromise<void> | void;
+    after?: (
+      range: MenuRange<C>,
+      payload: string,
+      pagination: MenuPagination,
+      ctx: C
+    ) => MaybePromise<void> | void;
+  }) {
+    this.clearTotalCache();
+
+    const getPagination = async (ctx: C): Promise<MenuPagination> => {
+      return {
+        total: await this.getTotal(ctx),
+        perPage: this.paginationOptions.perPage,
+        currentPage: this.getPage(ctx),
+      };
+    };
+
+    if (config.before !== undefined) {
+      this.dynamic(async (ctx, range) => {
+        const pagination = await getPagination(ctx);
+        await config.before!(range, this.payload.current(ctx), pagination, ctx);
+      });
+    }
+
+    this.dynamic(async (ctx, range) => {
+      const pagination = await getPagination(ctx);
+
+      const items = await this.paginationOptions.data(pagination, ctx);
+
+      for (const item of items) {
+        config.item(pagination, range, item, this.payload.current(ctx));
+      }
+    });
+
+    this.row().appendNavigationButtons().row();
+
+    if (config.after !== undefined) {
+      this.dynamic(async (ctx, range) => {
+        const pagination = await getPagination(ctx);
+        await config.after!(range, this.payload.current(ctx), pagination, ctx);
+      });
+    }
 
     return this;
   }

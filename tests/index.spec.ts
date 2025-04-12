@@ -15,33 +15,16 @@ test.group("Paginated menu", async (group) => {
     return items;
   })();
 
-  const createMenu = (config: PaginatedMenuOptions<Context>) =>
-    new PaginatedMenu<Context>("paginated-menu", config).paginated({
-      total: async () => {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        return data.length;
-      },
-      data: async (pagination) => {
-        console.log("fetching page", pagination.currentPage);
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        return data.slice(
-          (pagination.currentPage - 1) * pagination.perPage,
-          pagination.currentPage * pagination.perPage
-        );
-      },
-      builder: async (pagination, range, item, payload) => {
-        console.log("building item", item);
-
+  const createMenu = (config: PaginatedMenuOptions<Context, string>) =>
+    new PaginatedMenu("paginated-menu", config).text("button").paginated({
+      item: async (pagination, range, item, payload) => {
         range
           .text(
             {
-              text: (ctx) => `item ${item} | page: ${pagination.currentPage}`,
+              text: () => `item ${item} | page: ${pagination.currentPage}`,
               payload,
             },
-            async (ctx) => {
+            async () => {
               console.log(item);
             }
           )
@@ -60,7 +43,12 @@ test.group("Paginated menu", async (group) => {
   }) => {
     const paginatedMenu = createMenu({
       perPage: 5,
-      getTotal: () => data.length,
+      total: () => data.length,
+      data: (pagination) =>
+        data.slice(
+          (pagination.currentPage - 1) * pagination.perPage,
+          pagination.currentPage * pagination.perPage
+        ),
     });
 
     bot.use(paginatedMenu);
@@ -87,7 +75,12 @@ test.group("Paginated menu", async (group) => {
   test("can navigate to the last page", async ({ assert }) => {
     const paginatedMenu = createMenu({
       perPage: 5,
-      getTotal: () => data.length,
+      total: () => data.length,
+      data: (pagination) =>
+        data.slice(
+          (pagination.currentPage - 1) * pagination.perPage,
+          pagination.currentPage * pagination.perPage
+        ),
     });
 
     bot.use(paginatedMenu);
@@ -124,10 +117,15 @@ test.group("Paginated menu", async (group) => {
     assert.throws(() => bot.assert.button(">"));
   });
 
-  test("can navigate to the last page2", async ({ assert }) => {
+  test("can have custom navigation button style", async ({ assert }) => {
     const paginatedMenu = createMenu({
       perPage: 5,
-      getTotal: () => data.length,
+      total: () => data.length,
+      data: (pagination) =>
+        data.slice(
+          (pagination.currentPage - 1) * pagination.perPage,
+          pagination.currentPage * pagination.perPage
+        ),
       style: {
         previous: "⬅️",
         current: `page $current of $total`,
@@ -145,7 +143,7 @@ test.group("Paginated menu", async (group) => {
 
     await bot.receive.command("start");
 
-    bot.assert.button("➡️");
+    bot.assert.button("button");
     bot.assert.button("page 1 of 3");
 
     await bot.receive.button("➡️");
