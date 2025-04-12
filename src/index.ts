@@ -203,7 +203,7 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
       this.dynamic(async (ctx, range) => {
         const pagination = await getPagination(ctx);
         await config.before!(range, this.payload.current(ctx), pagination, ctx);
-      });
+      }).row();
     }
 
     this.dynamic(async (ctx, range) => {
@@ -222,7 +222,7 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
       this.dynamic(async (ctx, range) => {
         const pagination = await getPagination(ctx);
         await config.after!(range, this.payload.current(ctx), pagination, ctx);
-      });
+      }).row();
     }
 
     return this;
