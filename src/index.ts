@@ -133,53 +133,68 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
   };
 
   protected appendNavigationButtons = () => {
-    this.text({
-      text: async (ctx) => {
-        const show = this.getPage(ctx) > 1;
-        const style = this.paginationOptions.style?.previous;
+    this.text(
+      {
+        text: async (ctx) => {
+          const show = this.getPage(ctx) > 1;
+          const style = this.paginationOptions.style?.previous;
 
-        if (!show) {
-          return " ";
-        }
+          if (!show) {
+            return " ";
+          }
 
-        return typeof style === "function" ? await style(ctx) : style ?? "<";
+          return typeof style === "function" ? await style(ctx) : style ?? "<";
+        },
+        payload: (ctx) => this.payload.previous(ctx),
       },
-      payload: (ctx) => this.payload.previous(ctx),
-    });
+      async (ctx) => {
+        await ctx.answerCallbackQuery();
+      }
+    );
 
     if (this.paginationOptions.style?.current !== "") {
-      this.text({
-        text: async (ctx) => {
-          const current = this.getPage(ctx);
-          const total = await this.getPages(ctx);
-          const style = this.paginationOptions.style?.current;
+      this.text(
+        {
+          text: async (ctx) => {
+            const current = this.getPage(ctx);
+            const total = await this.getPages(ctx);
+            const style = this.paginationOptions.style?.current;
 
-          const template =
-            typeof style === "function"
-              ? await style(ctx)
-              : style ?? "$current / $total";
+            const template =
+              typeof style === "function"
+                ? await style(ctx)
+                : style ?? "$current / $total";
 
-          return template
-            .replace("$current", current.toString())
-            .replace("$total", total.toString());
+            return template
+              .replace("$current", current.toString())
+              .replace("$total", total.toString());
+          },
+          payload: (ctx) => this.payload.current(ctx),
         },
-        payload: (ctx) => this.payload.current(ctx),
-      });
+        async (ctx) => {
+          await ctx.answerCallbackQuery();
+        }
+      );
     }
 
-    this.text({
-      text: async (ctx) => {
-        const show = this.getPage(ctx) < (await this.getPages(ctx));
-        const style = this.paginationOptions.style?.next;
+    this.text(
+      {
+        text: async (ctx) => {
+          const show = this.getPage(ctx) < (await this.getPages(ctx));
+          const style = this.paginationOptions.style?.next;
 
-        if (!show) {
-          return " ";
-        }
+          if (!show) {
+            return " ";
+          }
 
-        return typeof style === "function" ? await style(ctx) : style ?? ">";
+          return typeof style === "function" ? await style(ctx) : style ?? ">";
+        },
+        payload: (ctx) => this.payload.next(ctx),
       },
-      payload: (ctx) => this.payload.next(ctx),
-    });
+      async (ctx) => {
+        await ctx.answerCallbackQuery();
+      }
+    );
 
     return this;
   };
