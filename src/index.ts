@@ -106,7 +106,10 @@ export class PaginatedMenu<C extends Context, T extends any> extends Menu<C> {
   private cachedTotal: number | undefined;
 
   private getTotal = async (ctx: C) => {
-    if (this.cachedTotal === undefined) {
+    if (
+      this.cachedTotal === undefined ||
+      this.cachedTotal <= this.paginationOptions.perPage
+    ) {
       this.cachedTotal = await this.paginationOptions.total(ctx);
     }
 
